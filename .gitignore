@@ -1,0 +1,10 @@
+# Never commit secrets or local test artifacts
+*.env
+.env
+*.key
+*_key*
+AQT*
+/tmp/
+__pycache__/
+*.pyc
+.DS_Store
